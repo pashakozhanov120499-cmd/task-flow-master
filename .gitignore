@@ -1,0 +1,39 @@
+# Database backups
+*.sql
+backup.sql
+*.dump
+*.backup
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Documentation (опционально, если не хотите коммитить)
+# SETUP_GITHUB.md
+
