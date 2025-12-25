@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  frontend:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint
+      
+      - name: Run tests
+        run: npm test -- --run
+      
+      - name: Check TypeScript
+        run: npx tsc --noEmit
+      
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:8080' }}
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  backend:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: taskflow
+          POSTGRES_PASSWORD: taskflow
+          POSTGRES_DB: taskflow
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: backend/go.sum
+      
+      - name: Install dependencies
+        run: go mod download
+      
+      - name: Run tests
+        run: go test -v ./...
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: taskflow
+          DB_PASSWORD: taskflow
+          DB_NAME: taskflow
+          DB_SSLMODE: disable
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
+          JWT_SECRET: test-secret-key-for-ci
+      
+      - name: Run tests with coverage
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: taskflow
+          DB_PASSWORD: taskflow
+          DB_NAME: taskflow
+          DB_SSLMODE: disable
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
+          JWT_SECRET: test-secret-key-for-ci
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./backend/coverage.out
+          flags: backend
+          name: backend-coverage
+      
+      - name: Build
+        run: go build -v -o task-flow-backend ./main.go
+      
+      - name: Build for multiple platforms
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o task-flow-backend-linux-amd64 ./main.go
+          GOOS=darwin GOARCH=amd64 go build -o task-flow-backend-darwin-amd64 ./main.go
+          GOOS=windows GOARCH=amd64 go build -o task-flow-backend-windows-amd64.exe ./main.go
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binaries
+          path: |
+            backend/task-flow-backend
+            backend/task-flow-backend-linux-amd64
+            backend/task-flow-backend-darwin-amd64
+            backend/task-flow-backend-windows-amd64.exe
+          retention-days: 7
+
