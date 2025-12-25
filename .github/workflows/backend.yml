@@ -87,7 +87,7 @@ jobs:
           JWT_SECRET: test-secret-key-for-ci
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: always()
         with:
           file: ./backend/coverage.out
